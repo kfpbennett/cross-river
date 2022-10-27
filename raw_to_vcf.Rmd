@@ -1,0 +1,90 @@
+---
+title: "Make unfiltered VCF"
+author: "Kevin Bennett"
+date: "6/10/2021"
+output: html_document
+---
+
+Initial processing of raw reads in Stacks.
+```{bash}
+process_radtags \
+-p /pool/genomics/bennettkf/river/rad/raw_reads/genewiz/ \
+-o /pool/genomics/bennettkf/river/rad/processed_reads/genewiz/ \
+-b /pool/genomics/bennettkf/river/rad/barcodes/samp_barcodes_set1.txt \
+--paired \
+--clean \
+--quality \
+--rescue \
+--renz-1 sbfI \
+-i gzfastq \
+--adapter_1 GATCGGAAGAGCGGTTCAGCAGGAATGCCGAGACCGATCAGAACAA \
+--adapter_2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
+--adapter_mm 2
+
+process_radtags \
+-p /pool/genomics/bennettkf/river/rad/raw_reads/novogene/reads/ \
+-o /pool/genomics/bennettkf/river/rad/processed_reads/novogene/ \
+-b /pool/genomics/bennettkf/river/rad/barcodes/samp_barcodes_set2.txt \
+--paired \
+--clean \
+--quality \
+--rescue \
+--renz-1 sbfI \
+-i gzfastq \
+--adapter_1 GATCGGAAGAGCGGTTCAGCAGGAATGCCGAGACCGATCAGAACAA \
+--adapter_2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
+--adapter_mm 2
+```
+
+Index the reference
+```{bash}
+bwa index /pool/genomics/bennettkf/genome/GCF_001715985.3_ASM171598v3_genomic.fna
+```
+
+Align processed reads to the reference.
+```{bash}
+bwa mem \
+-t 4 \
+/pool/genomics/bennettkf/genome/GCF_001715985.3_ASM171598v3_genomic.fna \
+/pool/genomics/bennettkf/river/rad/processed_reads/genewiz/$1.1.fq.gz \
+/pool/genomics/bennettkf/river/rad/processed_reads/genewiz/$1.2.fq.gz | \
+samtools view -b -h | \
+samtools sort --threads 4 \
+-o /pool/genomics/bennettkf/river/rad/aligned_reads/genewiz/$1.bam
+```
+
+Submit above job with:
+```{bash}
+for x in *.1.fq*; do x=${x%.1*}; qsub -N align_gw-${x} -o align_gw-${x}.log align_gw.job ${x}; done
+```
+
+Merge reads for which there were individuals sequenced in set 1 and 2. Example.
+```{bash}
+samtools \
+merge /pool/genomics/bennettkf/river/rad/aligned_reads/merged/EL_1915.bam \
+/pool/genomics/bennettkf/river/rad/aligned_reads/set1/EL_1915.bam \
+/pool/genomics/bennettkf/river/rad/aligned_reads/set2/EL_1915.bam
+```
+
+After moving both sets + merged reads into one folder, run gstacks.
+```{bash}
+gstacks \
+-t 4 \
+--rm-pcr-duplicates \
+-I /pool/genomics/bennettkf/river/rad/alignd_reads/merged \
+-M /pool/genomics/bennettkf/river/rad/pops/pops_full.txt \
+-O /pool/genomics/bennettkf/river/rad/gstacks/full
+```
+
+Finally, create unfiltered VCF file using Stacks populations module
+```{bash}
+populations \
+-P /pool/genomics/bennettkf/river/rad/gstacks/full \
+-O /pool/genomics/bennettkf/river/rad/stacks_populations/full \
+-M /pool/genomics/bennettkf/river/rad/pops/pops_full.txt \
+-t 8 \
+--vcf
+```
+
+
+

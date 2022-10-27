@@ -1,0 +1,175 @@
+---
+title: "filtering_scheme_2"
+author: "Kevin Bennett"
+date: "7/25/2022"
+output: html_document
+---
+
+
+Pre-step. 
+First, generate unfiltered RAD data in file 'raw_to_vcf.Rmd'.
+
+Step 1. Examine unfiltered VCF for loci that are likely the result of
+errors of some kind, i.e., only present in a small number of individuals.
+```{bash}
+stacks-dist-extract populations.log.distribs samples_per_loc_prefilters
+```
+
+This output shows that many loci are present in all but a handful of
+individuals, but there are a huge number present in only one or a few
+individuals.
+
+Next, I run Stacks Populations -p of 2 (i.e., for a locus to be processed, 
+it must be present in at least two populations) and an -R of 0.667 (i.e., for 
+a locus to be processed, it must be present in at least 2/3 of all individuals)
+
+```{bash}
+populations \
+-t 4 \
+-P /pool/genomics/bennettkf/river/rad/gstacks/full \
+-O /pool/genomics/bennettkf/river/rad/stacks_populations/full \
+-M /pool/genomics/bennettkf/river/rad/pops/pops_full.txt \
+-p 2 \
+-R 0.667 \
+--vcf
+```
+
+Step 2. Now look at missingness of loci across samples to filter out low-
+quality individuals.
+
+```{bash}
+stacks-dist-extract populations.log.distribs loci_per_sample
+```
+
+Create a list of individuals missing greater than 15% of all loci
+
+```{bash}
+stacks-dist-extract populations.log.distribs loci_per_sample | tail -191 \
+> loci_per_samp.txt
+
+awk '$5 > 0.15 {print $1}' loci_per_samp.txt > missing-0.15.txt
+```
+
+Filter out these individuals using VCFtools
+
+```{bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/populations.snps.vcf \
+--remove /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/missing-0.15.txt \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/locmiss-0.15
+```
+
+
+Step 3. Check depth statistics using VCFtools --geno-depth. Check quality using 
+--extract-FORMAT-info GQ. Then set low-quality and low- or high-coverage 
+genotypes to uncalled.
+```{bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/locmiss-0.15.recode.vcf \
+--minGQ 40 \
+--minDP 4 \
+--maxDP 60 \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/locmiss-0.15_GQ40_DP4-60
+```
+
+
+Step 4. Check missingness by site using VCFtools --missing-site. Filter out
+sites with too many missing genotypes.
+```{bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/locmiss-0.15_GQ40_DP4-60.recode.vcf \
+--max-missing-count 100 \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/locmiss-0.15_GQ40_DP4-60_mm100
+```
+
+Step 5. Thin filtered VCF to remove linked loci.
+```{bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/locmiss-0.15_GQ40_DP4-60_mm100.recode.vcf \
+--thin 50000 \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/p2R127/filtered_thin50k
+```
+
+This VCF file is used in dadi analysis.
+
+For PCA and SNMF:
+
+Step 1. Starting from the full VCF file, remove indels, set to uncalled any genotypes
+with a GQ lower than 40 and a DP lower than 4 or above 60. Filter to only biallelic 
+sites, filter out singletons, remove sites missing in more than 75% of individuals.
+
+```{bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/full/populations.snps.vcf \
+--remove-indels \
+--minGQ 40 \
+--minDP 4 \
+--maxDP 60 \
+--min-alleles 2 \
+--max-alleles 2 \
+--mac 2 \
+--max-missing 0.25 \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/snp_GQ40_DP4-60_biallel_mac2_mm75
+```
+
+Step 2. List missingness by individual
+
+``` {bash}
+vcftools --vcf snp_GQ40_DP4-60_biallel_mac2_mm75.recode.vcf --missing-indv
+awk '$5 > 0.9 {print $1}' out.imiss > imiss_90.txt
+```
+
+Use that to filter out individuals missing more than 90% of all SNPs.
+
+``` {bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/snp_GQ40_DP4-60_biallel_mac2_mm75.recode.vcf \
+--remove /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/imiss_90.txt \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90
+```
+
+Step 3. Remove sites still missing from more than 10% of all individuals
+
+```{bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90.recode.vcf \
+--max-missing 0.9 \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90_mm10
+```
+
+Step 4. 
+
+List missingness by individual
+
+``` {bash}
+--vcf snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90_mm10.recode.vcf --missing-indv --out out2
+awk '$5 > 0.4 {print $1}' out2.imiss > imiss_40.txt
+```
+
+Use that to filter out individuals missing more than 40% of all SNPs
+
+``` {bash}
+vcftools \
+--vcf /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90_mm10.recode.vcf \
+--remove /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/imiss_40.txt \
+--recode \
+--out /pool/genomics/bennettkf/river/rad/stacks_populations/pca-snmf/filtered4
+```
+
+Finally, thin by 5 kb
+
+```{bash}
+vcftools \
+--vcf filtered4.recode.vcf \
+--thin 5000 \
+--recode \
+--out filtered4_thin5k
+```
+
