@@ -1,0 +1,85 @@
+---
+title: "VCF_filtering_scheme"
+author: "Kevin Bennett"
+date: "04/05/2023"
+output: html_document
+---
+
+
+Pre-step. 
+First, generate unfiltered RAD data in file 'raw_to_vcf.Rmd'.
+
+
+Step 1. Starting from the full VCF file, remove indels, set to uncalled any genotypes
+with a GQ lower than 40 and a DP lower than 4 or above 60. Filter to only biallelic 
+sites, filter out singletons, remove sites missing in more than 75% of individuals.
+```{bash}
+vcftools \
+--vcf /your/directory/populations.snps.vcf \
+--remove-indels \
+--minGQ 40 \
+--minDP 4 \
+--maxDP 60 \
+--min-alleles 2 \
+--max-alleles 2 \
+--mac 2 \
+--max-missing 0.25 \
+--recode \
+--out /your/directory/snp_GQ40_DP4-60_biallel_mac2_mm75
+```
+
+Step 2. List missingness by individual
+``` {bash}
+vcftools --vcf snp_GQ40_DP4-60_biallel_mac2_mm75.recode.vcf --missing-indv
+awk '$5 > 0.9 {print $1}' out.imiss > imiss_90.txt
+```
+
+Use that to filter out individuals missing more than 90% of all SNPs.
+
+``` {bash}
+vcftools \
+--vcf /your/directory/snp_GQ40_DP4-60_biallel_mac2_mm75.recode.vcf \
+--remove /your/directory/imiss_90.txt \
+--recode \
+--out /your/directory/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90
+```
+
+Step 3. Remove sites still missing from more than 10% of all individuals
+```{bash}
+vcftools \
+--vcf /your/directory/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90.recode.vcf \
+--max-missing 0.9 \
+--recode \
+--out /your/directory/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90_mm10
+```
+
+Step 4. 
+
+List missingness by individual
+``` {bash}
+--vcf snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90_mm10.recode.vcf --missing-indv --out out2
+awk '$5 > 0.4 {print $1}' out2.imiss > imiss_40.txt
+```
+
+Use that to filter out individuals missing more than 40% of all SNPs
+
+``` {bash}
+vcftools \
+--vcf /your/directory/snp_GQ40_DP4-60_biallel_mac2_mm75_imiss90_mm10.recode.vcf \
+--remove /your/directory/imiss_40.txt \
+--recode \
+--out /your/directory/filtered4
+```
+
+Finally, thin by 5 kb
+```{bash}
+vcftools \
+--vcf /your/directory/filtered4.recode.vcf \
+--thin 5000 \
+--recode \
+--out /your/directory/filtered4_thin5k
+```
+
+filtered4_thin5k.recode.vcf will be the filtered file for popgen analyses.
+
+

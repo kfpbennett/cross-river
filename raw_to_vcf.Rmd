@@ -1,5 +1,5 @@
 ---
-title: "Make unfiltered VCF"
+title: "Raw reads to unfiltered VCF"
 author: "Kevin Bennett"
 date: "6/10/2021"
 output: html_document
@@ -75,6 +75,9 @@ gstacks \
 -M /pool/genomics/bennettkf/river/rad/pops/pops_full.txt \
 -O /pool/genomics/bennettkf/river/rad/gstacks/full
 ```
+
+Note: avg. effective coverage per sample is 14.9X
+
 
 Finally, create unfiltered VCF file using Stacks populations module
 ```{bash}
