@@ -7,7 +7,7 @@ library(adegenet)
 
 # =============================== IBD ANALYSIS =================================
 # Read in data for IBD analysis
-pop.gps <- fread('../pops_gps.txt') %>% arrange(pop)
+pop.gps <- fread('pops_gps.txt') %>% arrange(pop)
 samps <- fread('sampleinfo_filtered2.txt')
 dat.bed <- read.VCF('filtered4_thin5k.recode.vcf', convert.chr = FALSE)
 
