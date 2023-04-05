@@ -6,7 +6,7 @@ library(tidyverse)
 
 # ============================== AMOVA =========================================
 # Read in data for AMOVA
-dat <- read.PLINK('full_filtered4_thin5k/plink.raw', parallel = FALSE)
+dat <- read.PLINK('plink.raw', parallel = FALSE)
 samps <- fread('sampleinfo_filtered2.txt')
 
 # Males and females ------------------------------------------------------------
