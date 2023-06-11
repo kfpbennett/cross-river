@@ -29,7 +29,19 @@ plot(-1*pca$scores[,1],pca$scores[,2],
 
 # DAPC -------------------------------------------------------------------------
 dat$pop <- as.factor(pops)
-da <- dapc(dat, grp = as.factor(pops), glPca = pca)
+x <- 10:80
+set.seed(807)
+res <- xvalDapc.custom(tab(dat, NA.method = 'mean'), pop(dat), 
+                n.pca = x, n.rep = 100)
+resdf <- data.frame(x = x, y = res, xsq = x^2)
+mod <- lm(y ~ x + xsq, data = resdf)
+xvals <- seq(10, 80, 0.2)
+pred <- predict(mod, list(x = xvals, xsq = xvals^2))
+plot(x, res)
+lines(xvals, pred)
+
+da <- dapc(dat, grp = as.factor(pops), glPca = pca, n.pca = 50)
+
 scatter(da, scree.da = FALSE)
 
 # Males only -------------------------------------------------------------------
